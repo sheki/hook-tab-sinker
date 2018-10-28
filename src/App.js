@@ -18,7 +18,6 @@ const London = lazy(() => {
 
 const App = () => {
   const [_, setTab] = useState("Tokyo");
-
   return (
     <div className="App">
       <header className="App-header">
@@ -42,28 +41,78 @@ const Tab = () => {
   return null;
 };
 
+function genClickLog(log, current) {
+  const set = new Set([current]);
+  const newLog = [current];
+  log.forEach(l => {
+    if (!set.has(l)) {
+      log.push(l);
+      newLog.push(l);
+    }
+  });
+  return newLog;
+}
+
+function createSuspenseTree(targetTab, log, child, tabs, handleTabChange) {
+  const head = log.shift();
+
+  if (head !== targetTab) {
+    console.warn(`expect ${head} to be ${targetTab}`);
+  }
+  let current = child;
+
+  log.forEach(l => {
+    current = (
+      <Suspense
+        fallback={
+          <Fallback
+            tabs={tabs}
+            prevTab={l}
+            activeTab={targetTab}
+            onTabChange={handleTabChange}
+          />
+        }
+      >
+        {current}
+      </Suspense>
+    );
+  });
+  return <Suspense fallback={<Spinner />}>{current}</Suspense>;
+}
+
 function reducer(state, action) {
   switch (action.type) {
     case "change":
       if (state.current === action.id) {
         return state;
       }
-      return {current: action.id, prev: state.current};
+      return {
+        current: action.id,
+        prev: state.current,
+        clickLog: genClickLog(state.clickLog, action.id),
+      };
     case "initial":
-      return {prev: null, current: action.id};
+      return {
+        current: action.id,
+        prev: null,
+        clickLog: [action.id],
+      };
     default:
       throw new Error("bad reducer action");
   }
 }
 
 const Tabs = props => {
-  const {initialTab, children, onTabChange} = props;
+  const {children, onTabChange, initialTab} = props;
   const [state, dispatch] = useReducer(
     reducer,
-    {},
+    {
+      clickLog: [],
+      prev: null,
+      current: null,
+    },
     {type: "initial", id: initialTab}
   );
-  console.log(state);
 
   const handleTabChange = tab => {
     dispatch({type: "change", id: tab});
@@ -75,36 +124,35 @@ const Tabs = props => {
     name: x.props.name,
     render: x.props.children,
   }));
+  const child = (
+    <>
+      <TabHeader
+        tabs={tabs}
+        activeTab={state.current}
+        onTabChange={handleTabChange}
+      />
+      {tabs.map(x => (
+        <div key={x.id}>
+          <TabFrag
+            id={x.id}
+            key={x.id}
+            activeTab={state.current}
+            render={x.render}
+          />
+        </div>
+      ))}
+    </>
+  );
+
   return (
     <div className="TabContainer">
-      <Suspense
-        fallback={
-          <Fallback
-            tabs={tabs}
-            prevTab={state.prev}
-            activeTab={state.current}
-            onTabChange={handleTabChange}
-          />
-        }
-      >
-        <>
-          <TabHeader
-            tabs={tabs}
-            activeTab={state.current}
-            onTabChange={handleTabChange}
-          />
-          {tabs.map(x => (
-            <div key={x.id}>
-              <TabFrag
-                id={x.id}
-                key={x.id}
-                activeTab={state.current}
-                render={x.render}
-              />
-            </div>
-          ))}
-        </>
-      </Suspense>
+      {createSuspenseTree(
+        state.current,
+        [...state.clickLog],
+        child,
+        tabs,
+        handleTabChange
+      )}
     </div>
   );
 };
