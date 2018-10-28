@@ -1,4 +1,4 @@
-import React, {lazy, Suspense, useState} from "react";
+import React, {lazy, Suspense, useState, useReducer} from "react";
 import "./App.css";
 import classNames from "classnames";
 import Spinner from "./Spinner";
@@ -17,12 +17,12 @@ const London = lazy(() => {
 });
 
 const App = () => {
-  const [tab, setTab] = useState("Tokyo");
+  const [_, setTab] = useState("Tokyo");
 
   return (
     <div className="App">
       <header className="App-header">
-        <Tabs activeTab={tab} onTabChange={setTab}>
+        <Tabs initialTab="Tokyo" onTabChange={setTab}>
           <Tab id="Tokyo" name="Tokyo">
             <Tokyo />
           </Tab>
@@ -42,8 +42,33 @@ const Tab = () => {
   return null;
 };
 
+function reducer(state, action) {
+  switch (action.type) {
+    case "change":
+      if (state.current === action.id) {
+        return state;
+      }
+      return {current: action.id, prev: state.current};
+    case "initial":
+      return {prev: null, current: action.id};
+    default:
+      throw new Error("bad reducer action");
+  }
+}
+
 const Tabs = props => {
-  const {activeTab, children, onTabChange} = props;
+  const {initialTab, children, onTabChange} = props;
+  const [state, dispatch] = useReducer(
+    reducer,
+    {},
+    {type: "initial", id: initialTab}
+  );
+  console.log(state);
+
+  const handleTabChange = tab => {
+    dispatch({type: "change", id: tab});
+    onTabChange(tab);
+  };
 
   const tabs = React.Children.map(children, x => ({
     id: x.props.id,
@@ -52,10 +77,47 @@ const Tabs = props => {
   }));
   return (
     <div className="TabContainer">
-      <Suspense fallback={<Spinner />}>
+      <Suspense
+        fallback={
+          <Fallback
+            tabs={tabs}
+            prevTab={state.prev}
+            activeTab={state.current}
+            onTabChange={handleTabChange}
+          />
+        }
+      >
+        <>
+          <TabHeader
+            tabs={tabs}
+            activeTab={state.current}
+            onTabChange={handleTabChange}
+          />
+          {tabs.map(x => (
+            <div key={x.id}>
+              <TabFrag
+                id={x.id}
+                key={x.id}
+                activeTab={state.current}
+                render={x.render}
+              />
+            </div>
+          ))}
+        </>
+      </Suspense>
+    </div>
+  );
+};
+
+const Fallback = props => {
+  const {prevTab, activeTab, onTabChange, tabs} = props;
+  if (prevTab && prevTab !== activeTab) {
+    return (
+      <>
         <TabHeader
           tabs={tabs}
-          activeTab={activeTab}
+          activeTab={prevTab}
+          loadingTab={activeTab}
           onTabChange={onTabChange}
         />
         {tabs.map(x => (
@@ -63,18 +125,22 @@ const Tabs = props => {
             <TabFrag
               id={x.id}
               key={x.id}
-              activeTab={activeTab}
+              activeTab={prevTab}
               render={x.render}
             />
           </div>
         ))}
-      </Suspense>
-    </div>
-  );
+      </>
+    );
+  }
+  return <Spinner />;
 };
 
 const TabFrag = props => {
-  return <div hidden={props.id !== props.activeTab}>{props.render}</div>;
+  if (props.id === props.activeTab) {
+    return props.render;
+  }
+  return null;
 };
 
 const TabHeader = props => {

@@ -53,7 +53,7 @@
   font-weight: bold;
   border-bottom-style: solid;
   border-bottom-width: 2px;
-  border-bottom-color: #ffeeff;
+  border-bottom-color: #c6ff00;
   cursor:pointer;
 }
 
@@ -62,7 +62,7 @@
 }
 
 .LoadingTab {
-  border-bottom-color: #ffeeff;
+  border-bottom-color: #7c4dff;
 }
 
 .lds-heart {
